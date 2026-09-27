@@ -1,12 +1,12 @@
 # pzmcp
 
-MCP-сервер для Claude Code: запускает Project Zomboid (B42) сразу в нужный сейв, выполняет Lua внутри игры, читает `console.txt` и делает скриншоты окна. Нужен, чтобы Claude мог сам проверять моды в игре.
+An MCP server for Claude Code that launches Project Zomboid (B42) straight into a given save, runs Lua inside the game, reads `console.txt` and takes screenshots of the game window. It lets Claude test mods in game on its own.
 
-Только Windows. Нужен Node ≥ 18, зависимостей нет. Игра запускается через Steam-версию.
+Windows only. Needs Node ≥ 18, no dependencies. Works with the Steam version of the game.
 
-## Подключение
+## Setup
 
-В `.mcp.json` проекта (или через `claude mcp add`):
+Add it to the project's `.mcp.json` (or use `claude mcp add`):
 
 ```json
 {
@@ -16,34 +16,34 @@ MCP-сервер для Claude Code: запускает Project Zomboid (B42) с
 }
 ```
 
-Переменные окружения, если пути нестандартные:
-- `PZ_GAME_DIR` — папка игры. По умолчанию `C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid`.
-- `PZ_USER_DIR` — папка пользователя игры. По умолчанию `%USERPROFILE%\Zomboid`.
+Environment variables for non-default locations:
+- `PZ_GAME_DIR`: game folder. Default: `C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid`.
+- `PZ_USER_DIR`: the game's user folder. Default: `%USERPROFILE%\Zomboid`.
 
-## Инструменты
+## Tools
 
-| Инструмент | Что делает |
+| Tool | What it does |
 |---|---|
-| `pz_saves` | Список сейвов: режим, имя, дата, моды из `mods.txt`, какой сейв последний |
-| `pz_launch` | Запускает игру (по умолчанию с `-debug`), загружает сейв, проходит «Нажмите, чтобы начать» и ждёт, пока игрок окажется в мире |
-| `pz_wait` | Ждёт входа в игру, если `pz_launch` вызван с `wait=false` |
-| `pz_status` | Состояние: игра не запущена / главное меню / в игре / загрузка; позиция игрока; число ошибок в логе |
-| `pz_lua` | Выполняет Lua в игре и возвращает вывод `print` и возвращённые значения; одиночное выражение возвращается автоматически |
-| `pz_console` | Хвост `console.txt`, фильтр по regex или только ошибки |
-| `pz_screenshot` | Снимок окна игры в JPEG |
-| `pz_click` | Клик в окне (координаты — доли клиентской области) |
-| `pz_quit` | `getCore():quitToDesktop()`; `force=true` убивает процесс |
+| `pz_saves` | Lists saves: mode, name, date, mods from `mods.txt`, and which save is the latest |
+| `pz_launch` | Starts the game (with `-debug` by default), loads a save, gets past "click to start" and waits until the player is in the world |
+| `pz_wait` | Waits until the game is in the world, for use after `pz_launch` with `wait=false` |
+| `pz_status` | Game state (not running / main menu / in game / loading), player position, error count in the log |
+| `pz_lua` | Runs Lua in the game and returns `print` output and return values; a single expression is returned automatically |
+| `pz_console` | Tail of `console.txt`, filtered by regex or errors only |
+| `pz_screenshot` | JPEG capture of the game window |
+| `pz_click` | Clicks in the window (coordinates are fractions of the client area) |
+| `pz_quit` | `getCore():quitToDesktop()`; `force=true` kills the process |
 
-## Как это работает
+## How it works
 
-Игру и сервер связывает dev-мод `ClaudeBridge` из этой репы. Обмен идёт через файлы в `Zomboid/Lua`.
+The server and the game are connected by `ClaudeBridge`, a dev mod in this repo. They talk through files in `Zomboid/Lua`.
 
-- **Установка моста.** При первом `pz_launch` сервер подключает `ClaudeBridge` junction'ом в `Zomboid/mods` и добавляет его в `mods/default.txt` (моды главного меню) и в `mods.txt` загружаемого сейва. Перед первым изменением файла рядом сохраняется копия `.bak_claude`.
-- **Загрузка сейва.** У игры нет параметра командной строки для этого. Поэтому сервер пишет режим и имя сейва в `claude_bridge_autoload.txt`, а мост в главном меню вызывает `MainScreen.continueLatestSave` — так же срабатывает кнопка «Загрузить».
-- **«Нажмите, чтобы начать».** `GameLoadingState` ждёт `Mouse.isButtonDown(0)`. Когда в `console.txt` появляется строка `game loading took`, сервер кликает в центр окна: сначала через `PostMessage`, без перехвата фокуса, а если не сработало — настоящим кликом.
-- **Lua в игре.** В окружении Kahlua нет `loadstring`. Поэтому код пишется в `claude_bridge_cmd.lua`, и мост раз в 10 тиков (`OnFETick` / `OnTickEvenPaused`) выполняет его через `reloadLuaFile(абсолютный путь)`. Папка `Zomboid/` и папки модов входят в разрешённые префиксы `ZomboidFileSystem`. Результат возвращается через `claude_bridge_out.txt`, а мост раз в секунду пишет своё состояние в `claude_bridge_status.txt`.
-- **Скриншот.** `PrintWindow(PW_RENDERFULLCONTENT)` через [win.ps1](win.ps1) снимает окно, даже если оно перекрыто, но не когда свёрнуто.
+- **Bridge install.** On the first `pz_launch` the server links `ClaudeBridge` into `Zomboid/mods` as a junction and adds it to `mods/default.txt` (main-menu mods) and to the `mods.txt` of the save being loaded. Before a file is changed for the first time, a `.bak_claude` copy is saved next to it.
+- **Loading a save.** The game has no command-line option for this. The server writes the mode and save name to `claude_bridge_autoload.txt`, and the bridge calls `MainScreen.continueLatestSave` from the main menu, which is what the Load button does.
+- **"Click to start".** `GameLoadingState` waits for `Mouse.isButtonDown(0)`. When `game loading took` shows up in `console.txt`, the server clicks the center of the window: first via `PostMessage`, without stealing focus, then with a real mouse click if that didn't work.
+- **Lua in game.** The Kahlua environment has no `loadstring`. Instead, the code is written to `claude_bridge_cmd.lua`, and every 10 ticks (`OnFETick` / `OnTickEvenPaused`) the bridge runs it with `reloadLuaFile(absolute path)`. `Zomboid/` and mod folders are among the allowed prefixes of `ZomboidFileSystem`. The result comes back through `claude_bridge_out.txt`, and once a second the bridge writes its state to `claude_bridge_status.txt`.
+- **Screenshots.** [win.ps1](win.ps1) uses `PrintWindow(PW_RENDERFULLCONTENT)`, which captures the window even when it's covered by other windows, but not when it's minimized.
 
-## Безопасность
+## Security
 
-Мост выполняет любой Lua-код из файла в `Zomboid/Lua`. Это инструмент разработчика: не включай `ClaudeBridge` в мультиплеере и не публикуй его в Workshop.
+The bridge runs any Lua code it finds in a file in `Zomboid/Lua`. It is a developer tool: don't enable `ClaudeBridge` in multiplayer and don't publish it to the Workshop.
