@@ -1,0 +1,6 @@
+name=Claude Bridge (dev)
+id=ClaudeBridge
+description=Dev-only bridge for tools/pzmcp: auto-loads a save from the main menu and runs Lua sent by the MCP server. Talks only through files in Zomboid/Lua.
+author=kurmetov
+modversion=0.1.0
+versionMin=42.0

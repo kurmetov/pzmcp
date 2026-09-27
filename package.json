@@ -1,0 +1,11 @@
+{
+  "name": "pzmcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets Claude launch Project Zomboid (B42) into a save, run Lua in game, read console.txt and take screenshots",
+  "type": "module",
+  "main": "server.mjs",
+  "bin": { "pzmcp": "server.mjs" },
+  "engines": { "node": ">=18" },
+  "os": ["win32"],
+  "private": true
+}
